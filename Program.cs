@@ -7,6 +7,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using static DataTableToXml.ExcelExporter;
 
 namespace DataTableToXml
 {
@@ -99,17 +100,17 @@ namespace DataTableToXml
                     if (i == 0)
                     {
                         // Левая ячейка заголовка — стиль с толстой левой границей
-                        styleIndex = 6;
+                        styleIndex = (int)BorderTypesHeader.Inner;
                     }
                     else if (i == table.Columns.Count - 1)
                     {
                         // Правая ячейка заголовка — стиль с толстой правой границей
-                        styleIndex = 7;
+                        styleIndex = (int)BorderTypesHeader.Right;
                     }
                     else
                     {
                         // Внутренние ячейки — стиль с тонкими верхней и нижней границами
-                        styleIndex = 5;
+                        styleIndex = (int)BorderTypesHeader.Left;
                     }
 
                     Cell cell = new Cell
@@ -206,66 +207,74 @@ namespace DataTableToXml
                 // Определяем границы ячеек
                 new Borders(
                     new Border(), // 0 - без границ
-                    new Border(   // 1 - тонкие границы со всех сторон
-                        new LeftBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
-                        new RightBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
-                        new TopBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
-                        new BottomBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } }
-                    ),
-                    new Border(   // 2 - толстые границы сверху и снизу
+                    new Border(   // 1 - толстые границы сверху и снизу
                         new LeftBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
                         new RightBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
                         new TopBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
                         new BottomBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } }
                     ),
-                    new Border(   // 3 - толстые границы сверху снизу и слева
+                    new Border(   // 2 - толстые границы сверху снизу и слева
                         new LeftBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
                         new RightBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
                         new TopBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
                         new BottomBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } }
                     ),
-                    new Border(   // 4 - толстые границы сверху снизу и справа
+                    new Border(   // 3 - толстые границы сверху снизу и справа
                         new LeftBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
                         new RightBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
                         new TopBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
                         new BottomBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } }
+                    ),
+                    new Border(   // 4 - тонкие границы со всех сторон
+                        new LeftBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new RightBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new TopBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new BottomBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } }
                     )
                 ),
 
                 // Определяем форматы ячеек
                 new CellFormats(
                     new CellFormat(),                 // 0 - по умолчанию (без стиля)
-                    new CellFormat { FontId = 0, BorderId = 1, ApplyBorder = true },    // 1 - текст: обычный шрифт, зелёный фон, границы
-                    new CellFormat { FontId = 0, NumberFormatId = 4, BorderId = 1, ApplyBorder = true, ApplyNumberFormat = true }, // 2 - число с форматом чисел (NumberFormatId 4 — число с 2 знаками после запятой)
-                    new CellFormat { FontId = 0, NumberFormatId = 14, BorderId = 1, ApplyBorder = true, ApplyNumberFormat = true }, // 3 - дата (формат даты)
-                    new CellFormat { FontId = 1, ApplyFont = true,  BorderId = 1, ApplyBorder = true }, // 4 - булевы значения 
-                    new CellFormat { BorderId = 2, ApplyBorder = true }, // 5 - сверху снизу толстая
-                    new CellFormat { BorderId = 3, ApplyBorder = true }, // 6 - левая толстая
-                    new CellFormat { BorderId = 4, ApplyBorder = true } // 7 - правая толстая
+                    new CellFormat { BorderId = 1, ApplyBorder = true }, // 1 - сверху снизу толстая
+                    new CellFormat { BorderId = 2, ApplyBorder = true }, // 2 - левая толстая
+                    new CellFormat { BorderId = 3, ApplyBorder = true }, // 3 - правая толстая
+                    new CellFormat { FontId = 0, BorderId = 1, ApplyBorder = true },    // 4 - текст: обычный шрифт, зелёный фон, границы
+                    new CellFormat { FontId = 0, NumberFormatId = 4, BorderId = 1, ApplyBorder = true, ApplyNumberFormat = true }, // 5 - число с форматом чисел (NumberFormatId 4 — число с 2 знаками после запятой)
+                    new CellFormat { FontId = 0, NumberFormatId = 14, BorderId = 1, ApplyBorder = true, ApplyNumberFormat = true }, // 6 - дата (формат даты)
+                    new CellFormat { FontId = 1, ApplyFont = true,  BorderId = 1, ApplyBorder = true } // 7 - булевы значения 
                 )
             );
 
             // Сохраняем стили
             stylesPart.Stylesheet.Save();
         }
+    }
 
-        // Перечисление для удобства использования индексов стилей
-        public enum CellTypes
-        {
-            Default = 0,
-            Text,
-            Number,
-            Date,
-            Boolean
-        }
-        public enum BorderTypes
-        {
-            Default = 0,
-            Header = 1,
-            Text = 2,
-            Number = 3,
-            Date = 4,
-            Boolean = 5
-        }
+    // Перечисление для удобства использования индексов стилей
+    public enum CellTypes
+    {
+        Text = 4,
+        Number,
+        Date,
+        Boolean
+    }
+    public enum BorderTypes
+    {
+        TopLeft = 5,
+        Top,
+        TopRight,
+        Left,
+        Right,
+        Bottom,
+        BottomLeft,
+        BottomRight,
+        Inner // для внутренних ячеек без толстых границ
+    }
+    public enum BorderTypesHeader
+    {
+        Inner = 1,
+        Left,
+        Right
     }
 }
