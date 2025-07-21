@@ -137,7 +137,7 @@ namespace DataTableToXml
                 int columnsCount = table.Columns.Count; // количество столбцов
                 int headerRowIndex = 1; // строка заголовков, обычно 1
 
-                // Формируем адрес диапазона с заголовками, например "A1:D1"
+                // Формируем адрес диапазона с заголовками
                 string startColumn = "A";
                 string endColumn = GetExcelColumnName(columnsCount);
                 string filterRange = $"{startColumn}{headerRowIndex}:{endColumn}{headerRowIndex}";
@@ -163,7 +163,7 @@ namespace DataTableToXml
                 string GetExcelColumnName(int columnNumber)
                 {
                     int dividend = columnNumber;
-                    string columnName = String.Empty;
+                    string columnName = string.Empty;
                     int modulo;
 
                     while (dividend > 0)
@@ -416,7 +416,7 @@ namespace DataTableToXml
                     new CellFormat { BorderId = 10, ApplyBorder = true, NumberFormatId = 14, ApplyNumberFormat = true }, // 28 - RightMiddle Date
                     new CellFormat { BorderId = 11, ApplyBorder = true, NumberFormatId = 14, ApplyNumberFormat = true }, // 29 - RightBottom Date
                     new CellFormat { BorderId = 12, ApplyBorder = true, NumberFormatId = 14, ApplyNumberFormat = true } // 30 - Top Date
-                                )
+                )
             );
 
             // Сохраняем стили
