@@ -52,7 +52,6 @@ namespace DataTableToXml
 
             ExcelExporter.ExportDataTableToExcel(myTable, @"C:\\Users\\zimnitskyaa\\Desktop\\test.xlsx");
 
-            //Открытие CSV в Excel
             Process.Start(new ProcessStartInfo()
             {
                 FileName = @"C:\\Users\\zimnitskyaa\\Desktop\\test.xlsx",
@@ -83,7 +82,7 @@ namespace DataTableToXml
                 {
                     Id = workbookPart.GetIdOfPart(worksheetPart), // связываем лист с частью
                     SheetId = 1,                                  // идентификатор листа
-                    Name = "Лист1"                                // имя листа в Excel
+                    Name = "Отчёт"                                // имя листа в Excel
                 };
                 sheets.Append(sheet);
 
@@ -376,6 +375,7 @@ namespace DataTableToXml
                     )
                 ),
 
+                //TO DO header all border thick
                 new CellFormats(
                     new CellFormat(),                                         // 0 - по умолчанию (без стиля)
 
