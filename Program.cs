@@ -7,7 +7,6 @@ using System.Data;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using static DataTableToXml.ExcelExporter;
 
 namespace DataTableToXml
 {
@@ -100,17 +99,17 @@ namespace DataTableToXml
                     if (i == 0)
                     {
                         // Левая ячейка заголовка — стиль с толстой левой границей
-                        styleIndex = (int)BorderTypesHeader.Inner;
+                        styleIndex = (int)HeaderPosition.Left;
                     }
                     else if (i == table.Columns.Count - 1)
                     {
                         // Правая ячейка заголовка — стиль с толстой правой границей
-                        styleIndex = (int)BorderTypesHeader.Right;
+                        styleIndex = (int)HeaderPosition.Right;
                     }
                     else
                     {
                         // Внутренние ячейки — стиль с тонкими верхней и нижней границами
-                        styleIndex = (int)BorderTypesHeader.Left;
+                        styleIndex = (int)HeaderPosition.Inner;
                     }
 
                     Cell cell = new Cell
@@ -136,49 +135,30 @@ namespace DataTableToXml
                 worksheetPart.Worksheet.InsertAt(columns, 0);
 
                 // Заполняем строки данными из DataTable
-                foreach (DataRow dtRow in table.Rows)
+                for (int rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
                 {
+                    var dtRow = table.Rows[rowIndex];
                     Row newRow = new Row();
 
-                    for (int i = 0; i < table.Columns.Count; i++)
+                    for (int colIndex = 0; colIndex < table.Columns.Count; colIndex++)
                     {
-                        object item = dtRow[i];
+                        object item = dtRow[colIndex];
                         Cell cell = new Cell();
 
-                        // В зависимости от типа данных устанавливаем значение и стиль ячейки
-                        if (item is int || item is float || item is double || item is decimal)
-                        {
-                            // Числа: записываем как строку с форматом числа
-                            cell.CellValue = new CellValue(Convert.ToString(item, CultureInfo.InvariantCulture));
-                            cell.StyleIndex = (int)CellTypes.Number; // стиль для чисел
-                        }
-                        else if (item is DateTime dateTime)
-                        {
-                            // Даты в Excel хранятся как числа (OADate)
-                            cell.CellValue = new CellValue(dateTime.ToOADate().ToString(CultureInfo.InvariantCulture));
-                            cell.DataType = CellValues.Number;
-                            cell.StyleIndex = (uint)CellTypes.Date;
-                        }
-                        else if (item is bool b)
-                        {
-                            // Булевы значения: тип Boolean и стиль 
-                            cell.DataType = CellValues.Boolean;
-                            cell.CellValue = new CellValue(b ? "1" : "0");
-                            cell.StyleIndex = (int)CellTypes.Boolean;
-                        }
-                        else
-                        {
-                            // Текст и прочее: строковый тип, стиль для текста 
-                            cell.DataType = CellValues.String;
-                            cell.CellValue = new CellValue(item?.ToString() ?? string.Empty);
-                            cell.StyleIndex = (int)CellTypes.Text;
-                        }
+                        // Значение — просто строковое представление
+                        cell.DataType = CellValues.String;
+                        cell.CellValue = new CellValue(item?.ToString() ?? string.Empty);
+
+                        // Определяем позицию ячейки и стиль на основе границ
+                        CellPosition position = GetCellPosition(rowIndex, table.Rows.Count, colIndex, table.Columns.Count);
+                        cell.StyleIndex = GetStyleIndex(position);
 
                         newRow.AppendChild(cell);
                     }
 
                     sheetData.AppendChild(newRow);
                 }
+
 
                 // Сохраняем книгу
                 workbookPart.Workbook.Save();
@@ -230,6 +210,69 @@ namespace DataTableToXml
                         new RightBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
                         new TopBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
                         new BottomBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } }
+                    ),
+                    // 5 - левая верхняя ячейка
+                    new Border(
+                        new LeftBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
+                        new RightBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new TopBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
+                        new BottomBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } }
+                    ),
+
+                    // 6 - левая средняя ячейка
+                    new Border(
+                        new LeftBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
+                        new RightBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new TopBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new BottomBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } }
+                    ),
+
+                    // 7 - левая нижняя ячейка
+                    new Border(
+                        new LeftBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
+                        new RightBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new TopBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new BottomBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } }
+                    ),
+
+                    // 8 - нижняя ячейка
+                    new Border(
+                        new LeftBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new RightBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new TopBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new BottomBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } }
+                    ),
+
+                    // 9 - правая верхняя ячейка
+                    new Border(
+                        new LeftBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new RightBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
+                        new TopBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
+                        new BottomBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } }
+                    ),
+
+                    // 10 - правая средняя ячейка
+                    new Border(
+                        new LeftBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new RightBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
+                        new TopBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new BottomBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } }
+                    ),
+
+                    // 11 - правая нижняя ячейка
+                    new Border(
+                        new LeftBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new RightBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
+                        new TopBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new BottomBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } }
+                    ),
+
+                    // 12 - верхняя ячейка
+                    new Border(
+                        new LeftBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new RightBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } },
+                        new TopBorder { Style = BorderStyleValues.Thick, Color = new Color { Auto = true } },
+                        new BottomBorder { Style = BorderStyleValues.Thin, Color = new Color { Auto = true } }
                     )
                 ),
 
@@ -239,16 +282,58 @@ namespace DataTableToXml
                     new CellFormat { BorderId = 1, ApplyBorder = true }, // 1 - сверху снизу толстая
                     new CellFormat { BorderId = 2, ApplyBorder = true }, // 2 - левая толстая
                     new CellFormat { BorderId = 3, ApplyBorder = true }, // 3 - правая толстая
-                    new CellFormat { FontId = 0, BorderId = 1, ApplyBorder = true },    // 4 - текст: обычный шрифт, зелёный фон, границы
-                    new CellFormat { FontId = 0, NumberFormatId = 4, BorderId = 1, ApplyBorder = true, ApplyNumberFormat = true }, // 5 - число с форматом чисел (NumberFormatId 4 — число с 2 знаками после запятой)
-                    new CellFormat { FontId = 0, NumberFormatId = 14, BorderId = 1, ApplyBorder = true, ApplyNumberFormat = true }, // 6 - дата (формат даты)
-                    new CellFormat { FontId = 1, ApplyFont = true,  BorderId = 1, ApplyBorder = true } // 7 - булевы значения 
+                    new CellFormat { BorderId = 4, ApplyBorder = true }, // 3 - правая толстая
+                    new CellFormat { BorderId = 5, ApplyBorder = true }, // 3 - правая толстая
+                    new CellFormat { BorderId = 6, ApplyBorder = true }, // 3 - правая толстая
+                    new CellFormat { BorderId = 7, ApplyBorder = true }, // 3 - правая толстая
+                    new CellFormat { BorderId = 8, ApplyBorder = true }, // 3 - правая толстая
+                    new CellFormat { BorderId = 9, ApplyBorder = true }, // 3 - правая толстая
+                    new CellFormat { BorderId = 10, ApplyBorder = true }, // 3 - правая толстая
+                    new CellFormat { BorderId = 11, ApplyBorder = true }, // 3 - правая толстая
+                    new CellFormat { BorderId = 12, ApplyBorder = true } // 3 - правая толстая
                 )
             );
 
             // Сохраняем стили
             stylesPart.Stylesheet.Save();
         }
+
+        private static CellPosition GetCellPosition(int rowIndex, int totalRows, int colIndex, int totalCols)
+        {
+            bool isTop = rowIndex == 0;
+            bool isBottom = rowIndex == totalRows - 1;
+            bool isLeft = colIndex == 0;
+            bool isRight = colIndex == totalCols - 1;
+
+            if (isTop && isLeft) return CellPosition.LeftTop;
+            if (isTop && isRight) return CellPosition.RightTop;
+            if (isBottom && isLeft) return CellPosition.LeftBottom;
+            if (isBottom && isRight) return CellPosition.RightBottom;
+            if (isTop) return CellPosition.Top;
+            if (isBottom) return CellPosition.Bottom;
+            if (isLeft) return CellPosition.LeftMiddle;
+            if (isRight) return CellPosition.RightMiddle;
+
+            return CellPosition.Inner;
+        }
+
+        private static uint GetStyleIndex(CellPosition position)
+        {
+            switch (position)
+            {
+                case CellPosition.LeftTop: return 5;
+                case CellPosition.LeftMiddle: return 6;
+                case CellPosition.LeftBottom: return 7;
+                case CellPosition.RightTop: return 9;
+                case CellPosition.RightMiddle: return 10;
+                case CellPosition.RightBottom: return 11;
+                case CellPosition.Top: return 12;
+                case CellPosition.Bottom: return 8;
+                default: return 4; // внутренняя ячейка
+            }
+        }
+
+
     }
 
     // Перечисление для удобства использования индексов стилей
@@ -259,19 +344,21 @@ namespace DataTableToXml
         Date,
         Boolean
     }
-    public enum BorderTypes
+
+    public enum CellPosition
     {
-        TopLeft = 5,
-        Top,
-        TopRight,
-        Left,
-        Right,
+        Inner = 4,
+        LeftTop,
+        LeftMiddle,
+        LeftBottom,
         Bottom,
-        BottomLeft,
-        BottomRight,
-        Inner // для внутренних ячеек без толстых границ
+        RightTop,
+        RightMiddle,
+        RightBottom,
+        Top
     }
-    public enum BorderTypesHeader
+
+    public enum HeaderPosition
     {
         Inner = 1,
         Left,
