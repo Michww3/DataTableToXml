@@ -7,6 +7,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 
 namespace DataTableToXml
 {
@@ -126,15 +127,91 @@ namespace DataTableToXml
                 Columns columns = new Columns();
                 columns.Append(new Column()
                 {
-                    Min = 4,
-                    Max = 4,
+                    Min = 1,
+                    Max = (uint)table.Columns.Count,
                     Width = 15,
                     CustomWidth = true
                 });
 
                 worksheetPart.Worksheet.InsertAt(columns, 0);
 
-                // Заполняем строки данными из DataTable
+                int columnsCount = table.Columns.Count; // количество столбцов
+                int headerRowIndex = 1; // строка заголовков, обычно 1
+
+                // Формируем адрес диапазона с заголовками, например "A1:D1"
+                string startColumn = "A";
+                string endColumn = GetExcelColumnName(columnsCount);
+                string filterRange = $"{startColumn}{headerRowIndex}:{endColumn}{headerRowIndex}";
+
+                // Добавляем или обновляем элемент AutoFilter
+                var worksheet = worksheetPart.Worksheet;
+
+                var autoFilter = worksheet.Elements<AutoFilter>().FirstOrDefault();
+                if (autoFilter != null)
+                {
+                    autoFilter.Reference = filterRange;
+                }
+                else
+                {
+                    autoFilter = new AutoFilter() { Reference = filterRange };
+                    worksheet.InsertAfter(autoFilter, worksheet.Elements<SheetData>().First());
+                }
+
+                // Сохраняем изменения
+                worksheet.Save();
+
+                // Вспомогательная функция для преобразования номера столбца в букву Excel
+                string GetExcelColumnName(int columnNumber)
+                {
+                    int dividend = columnNumber;
+                    string columnName = String.Empty;
+                    int modulo;
+
+                    while (dividend > 0)
+                    {
+                        modulo = (dividend - 1) % 26;
+                        columnName = Convert.ToChar(65 + modulo) + columnName;
+                        dividend = (dividend - modulo) / 26;
+                    }
+
+                    return columnName;
+                }
+
+                // Создаём или получаем SheetViews
+                SheetViews sheetViews = worksheet.Elements<SheetViews>().FirstOrDefault();
+                if (sheetViews == null)
+                {
+                    sheetViews = new SheetViews();
+                    worksheet.InsertAt(sheetViews, 0);
+                }
+
+                // Создаём SheetView
+                SheetView sheetView = sheetViews.Elements<SheetView>().FirstOrDefault();
+                if (sheetView == null)
+                {
+                    sheetView = new SheetView() { WorkbookViewId = 0U };
+                    sheetViews.Append(sheetView);
+                }
+
+                // Создаём панель для закрепления (закрепляем первую строку — значит панель начинается со второй строки, Index 1)
+                Pane pane = new Pane()
+                {
+                    VerticalSplit = 1D,       // число строк, которые будут закреплены сверху (1 — первая строка)
+                    TopLeftCell = "A2",       // Ячейка, которая будет в верхнем левом углу видимой области после закрепления
+                    ActivePane = PaneValues.BottomLeft, // Активная панель после закрепления
+                    State = PaneStateValues.Frozen     // Устанавливаем состояние "закреплено"
+                };
+
+                // Удаляем старую панель, если есть
+                var oldPane = sheetView.Elements<Pane>().FirstOrDefault();
+                if (oldPane != null)
+                    oldPane.Remove();
+
+                sheetView.Append(pane);
+
+                // Сохраняем изменения
+                worksheet.Save();
+
                 for (int rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
                 {
                     var dtRow = table.Rows[rowIndex];
@@ -145,20 +222,43 @@ namespace DataTableToXml
                         object item = dtRow[colIndex];
                         Cell cell = new Cell();
 
-                        // Значение — просто строковое представление
-                        cell.DataType = CellValues.String;
-                        cell.CellValue = new CellValue(item?.ToString() ?? string.Empty);
+                        // Определяем тип значения и его строковое представление
+                        string valueText = item?.ToString() ?? string.Empty;
+                        cell.CellValue = new CellValue(valueText);
 
-                        // Определяем позицию ячейки и стиль на основе границ
+                        Type dataType = item?.GetType();
+                        bool isNumeric = dataType == typeof(int) || dataType == typeof(double) || dataType == typeof(float) || dataType == typeof(decimal);
+                        bool isDate = dataType == typeof(DateTime);
+
+                        if (isNumeric)
+                        {
+                            cell.CellValue = new CellValue(Convert.ToString(item, CultureInfo.InvariantCulture));
+                            cell.DataType = new EnumValue<CellValues>(CellValues.Number);
+                        }
+                        else if (isDate)
+                        {
+                            DateTime dateValue = (DateTime)item;
+                            cell.CellValue = new CellValue(dateValue.ToOADate().ToString(CultureInfo.InvariantCulture));
+                            cell.DataType = new EnumValue<CellValues>(CellValues.Number);
+                        }
+                        else
+                        {
+                            // Строка
+                            cell.DataType = new EnumValue<CellValues>(CellValues.String);
+                            cell.CellValue = new CellValue(valueText);
+                        }
+
+                        // Позиция ячейки в таблице
                         CellPosition position = GetCellPosition(rowIndex, table.Rows.Count, colIndex, table.Columns.Count);
-                        cell.StyleIndex = GetStyleIndex(position);
+
+                        // Выбор стиля в зависимости от позиции и типа данных
+                        cell.StyleIndex = GetStyleIndex(position, isNumeric, isDate);
 
                         newRow.AppendChild(cell);
                     }
 
                     sheetData.AppendChild(newRow);
                 }
-
 
                 // Сохраняем книгу
                 workbookPart.Workbook.Save();
@@ -276,22 +376,47 @@ namespace DataTableToXml
                     )
                 ),
 
-                // Определяем форматы ячеек
                 new CellFormats(
-                    new CellFormat(),                 // 0 - по умолчанию (без стиля)
-                    new CellFormat { BorderId = 1, ApplyBorder = true }, // 1 - сверху снизу толстая
-                    new CellFormat { BorderId = 2, ApplyBorder = true }, // 2 - левая толстая
-                    new CellFormat { BorderId = 3, ApplyBorder = true }, // 3 - правая толстая
-                    new CellFormat { BorderId = 4, ApplyBorder = true }, // 3 - правая толстая
-                    new CellFormat { BorderId = 5, ApplyBorder = true }, // 3 - правая толстая
-                    new CellFormat { BorderId = 6, ApplyBorder = true }, // 3 - правая толстая
-                    new CellFormat { BorderId = 7, ApplyBorder = true }, // 3 - правая толстая
-                    new CellFormat { BorderId = 8, ApplyBorder = true }, // 3 - правая толстая
-                    new CellFormat { BorderId = 9, ApplyBorder = true }, // 3 - правая толстая
-                    new CellFormat { BorderId = 10, ApplyBorder = true }, // 3 - правая толстая
-                    new CellFormat { BorderId = 11, ApplyBorder = true }, // 3 - правая толстая
-                    new CellFormat { BorderId = 12, ApplyBorder = true } // 3 - правая толстая
-                )
+                    new CellFormat(),                                         // 0 - по умолчанию (без стиля)
+
+                    //header
+                    new CellFormat { BorderId = 1, ApplyBorder = true },      // 1 - заголовок (сверху и снизу толстая)
+                    new CellFormat { BorderId = 2, ApplyBorder = true },      // 2 - заголовок: левая ячейка
+                    new CellFormat { BorderId = 3, ApplyBorder = true },      // 3 - заголовок: правая ячейка
+
+                    //default
+                    new CellFormat { BorderId = 4, ApplyBorder = true },      // 4 - ячейка внутри таблицы (тонкие границы)
+                    new CellFormat { BorderId = 5, ApplyBorder = true },      // 5 - левая верхняя ячейка
+                    new CellFormat { BorderId = 6, ApplyBorder = true },      // 6 - левая средняя ячейка
+                    new CellFormat { BorderId = 7, ApplyBorder = true },      // 7 - левая нижняя ячейка
+                    new CellFormat { BorderId = 8, ApplyBorder = true },      // 8 - нижняя внутренняя 
+                    new CellFormat { BorderId = 9, ApplyBorder = true },      // 9 - правая верхняя ячейка
+                    new CellFormat { BorderId = 10, ApplyBorder = true },     // 10 - правая средняя ячейка
+                    new CellFormat { BorderId = 11, ApplyBorder = true },     // 11 - правая нижняя ячейка
+                    new CellFormat { BorderId = 12, ApplyBorder = true },      // 12 - верхняя внутренняя ячейка
+
+                    // --- 13–18: Number
+                    new CellFormat { BorderId = 4, ApplyBorder = true, NumberFormatId = 4, ApplyNumberFormat = true },  // 13 - Middle Number
+                    new CellFormat { BorderId = 5, ApplyBorder = true, NumberFormatId = 4, ApplyNumberFormat = true },  // 14 - LeftTop Number
+                    new CellFormat { BorderId = 6, ApplyBorder = true, NumberFormatId = 4, ApplyNumberFormat = true },  // 15 - LeftMiddle Number
+                    new CellFormat { BorderId = 7, ApplyBorder = true, NumberFormatId = 4, ApplyNumberFormat = true },  // 16 - LeftBottom Number
+                    new CellFormat { BorderId = 8, ApplyBorder = true, NumberFormatId = 4, ApplyNumberFormat = true },  // 17 - Bottom Number
+                    new CellFormat { BorderId = 9, ApplyBorder = true, NumberFormatId = 4, ApplyNumberFormat = true },  // 18 - RightTop Number
+                    new CellFormat { BorderId = 10, ApplyBorder = true, NumberFormatId = 4, ApplyNumberFormat = true }, // 19 - RightMiddle Number
+                    new CellFormat { BorderId = 11, ApplyBorder = true, NumberFormatId = 4, ApplyNumberFormat = true }, // 20 - RightBottom Number
+                    new CellFormat { BorderId = 12, ApplyBorder = true, NumberFormatId = 4, ApplyNumberFormat = true }, // 21 - Top Number
+
+                    // --- 22–30: Date
+                    new CellFormat { BorderId = 4, ApplyBorder = true, NumberFormatId = 14, ApplyNumberFormat = true },  // 22 - Middle Date
+                    new CellFormat { BorderId = 5, ApplyBorder = true, NumberFormatId = 14, ApplyNumberFormat = true },  // 23 - LeftTop Date
+                    new CellFormat { BorderId = 6, ApplyBorder = true, NumberFormatId = 14, ApplyNumberFormat = true },  // 24 - LeftMiddle Date
+                    new CellFormat { BorderId = 7, ApplyBorder = true, NumberFormatId = 14, ApplyNumberFormat = true },  // 25 - LeftBottom Date
+                    new CellFormat { BorderId = 8, ApplyBorder = true, NumberFormatId = 14, ApplyNumberFormat = true },  // 26 - Bottom Date
+                    new CellFormat { BorderId = 9, ApplyBorder = true, NumberFormatId = 14, ApplyNumberFormat = true },  // 27 - RightTop Date
+                    new CellFormat { BorderId = 10, ApplyBorder = true, NumberFormatId = 14, ApplyNumberFormat = true }, // 28 - RightMiddle Date
+                    new CellFormat { BorderId = 11, ApplyBorder = true, NumberFormatId = 14, ApplyNumberFormat = true }, // 29 - RightBottom Date
+                    new CellFormat { BorderId = 12, ApplyBorder = true, NumberFormatId = 14, ApplyNumberFormat = true } // 30 - Top Date
+                                )
             );
 
             // Сохраняем стили
@@ -317,32 +442,59 @@ namespace DataTableToXml
             return CellPosition.Inner;
         }
 
-        private static uint GetStyleIndex(CellPosition position)
+        private static uint GetStyleIndex(CellPosition position, bool isNumeric, bool isDate)
         {
+            int baseIndex = 0;
+
             switch (position)
             {
-                case CellPosition.LeftTop: return 5;
-                case CellPosition.LeftMiddle: return 6;
-                case CellPosition.LeftBottom: return 7;
-                case CellPosition.RightTop: return 9;
-                case CellPosition.RightMiddle: return 10;
-                case CellPosition.RightBottom: return 11;
-                case CellPosition.Top: return 12;
-                case CellPosition.Bottom: return 8;
-                default: return 4; // внутренняя ячейка
+                case CellPosition.Inner:
+                    baseIndex = 0;
+                    break;
+                case CellPosition.LeftTop:
+                    baseIndex = 1;
+                    break;
+                case CellPosition.LeftMiddle:
+                    baseIndex = 2;
+                    break;
+                case CellPosition.LeftBottom:
+                    baseIndex = 3;
+                    break;
+                case CellPosition.Bottom:
+                    baseIndex = 4;
+                    break;
+                case CellPosition.RightTop:
+                    baseIndex = 5;
+                    break;
+                case CellPosition.RightMiddle:
+                    baseIndex = 6;
+                    break;
+                case CellPosition.RightBottom:
+                    baseIndex = 7;
+                    break;
+                case CellPosition.Top:
+                    baseIndex = 8;
+                    break;
+                default:
+                    baseIndex = 0;
+                    break;
             }
-        }
 
+            if (isNumeric)
+                return (uint)(13 + baseIndex);  // Number block
+            if (isDate)
+                return (uint)(22 + baseIndex);  // Date block
+
+            return (uint)(4 + baseIndex);       // Text/default
+        }
 
     }
 
-    // Перечисление для удобства использования индексов стилей
-    public enum CellTypes
+    public enum HeaderPosition
     {
-        Text = 4,
-        Number,
-        Date,
-        Boolean
+        Inner = 1,
+        Left,
+        Right
     }
 
     public enum CellPosition
@@ -356,12 +508,5 @@ namespace DataTableToXml
         RightMiddle,
         RightBottom,
         Top
-    }
-
-    public enum HeaderPosition
-    {
-        Inner = 1,
-        Left,
-        Right
     }
 }
